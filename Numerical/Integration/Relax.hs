@@ -3,7 +3,7 @@
 -- License: BSD3
 --
 
-module Relax where
+module Numerical.Integration.Relax where
 
 import Data.Array
 
