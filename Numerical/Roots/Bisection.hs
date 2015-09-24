@@ -13,6 +13,7 @@ import Numerical.Iteration (untilCountMaybe)
 import Control.FPipe
 import Control.Monad (liftM)
 
+intervalSpan :: (Num a, Ord a) => (a, a) -> a
 intervalSpan (a,b) = let (xL,xH) = if a<b then (a,b) else (b,a) in xH - xL
 
 
@@ -33,10 +34,13 @@ instance Refinable BisectSearch where
                liftM (\p -> r { bracket=p })
   quality = undefined
 
+bisectToRootBracket ::
+  (Double -> Double) -> (Double, Double) -> Double -> Maybe (Double, Double)
 bisectToRootBracket f p eps = refine (BisectSearch f p eps) 100
 
-bisectToRoot f p eps = bisectToRootBracket f p eps $> liftM (\(a,b)->0.5*(a+b))
-
+bisectToRoot ::
+  (Double -> Double) -> (Double, Double) -> Double -> Maybe Double
+bisectToRoot f p eps = center <$> bisectToRootBracket f p eps
 
 bisectBy :: (Fractional u) =>
             (u -> v)         -- ^ Function
@@ -50,15 +54,17 @@ bisectBy f p (a,b) = let m = center (a,b) in
 
 bisectInwardUntil :: (Fractional u, Ord u) =>
                      (u -> v) -> ((v,v) -> Bool) -> (u,u) -> u -> Maybe (u,u)
-bisectInwardUntil f p (a,b) eps = 
+bisectInwardUntil f p (a,b) eps =
     untilCountMaybe isIntervalSmallEnough (bisectBy f p) (a,b) 1000 $> liftM dropCount
      where isIntervalSmallEnough (a,b) = abs (b - a) <= eps
-           dropCount (r,(a,b)) = (a,b)
+           dropCount = snd
 
 bisectToRoot' :: (Fractional u, Fractional v, Ord u, Ord v) =>
-                (u -> v) -> (u,u) -> u -> Maybe (u,u)
+                 (u -> v) -> (u,u) -> u -> Maybe (u,u)
 bisectToRoot' f (a,b) eps = bisectInwardUntil f hasRootMonotonic (a,b) eps
 
+bisectToRootStep :: (Fractional u, Fractional v, Ord v) =>
+                    (u -> v) -> (u, u) -> Maybe (u, u)
 bisectToRootStep f (a,b) = bisectBy f hasRootMonotonic (a,b)
 
 firstOrderApproach :: (RealFloat a) => (a -> b) -> (b -> a) -> (a, b) -> Maybe a
@@ -73,6 +79,4 @@ firstOrderApproach f ef (x0, y0) =
         e0 = ef y0
         eSlope = (eHigh - eLow) / (xHigh - xLow)
         est = x0 - e0 / eSlope in  -- Estimate of where the error is zero.
-    if badGuess est then Nothing else Just est
-        where badGuess x = isInfinite x || isNaN x
-
+    if isReal est then Just est else Nothing
